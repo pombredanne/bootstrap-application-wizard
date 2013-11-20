@@ -21,14 +21,14 @@
  */
 
 (function ($) {
+
 	$.fn.wizard = function(args) {
 		return new Wizard(this, args);
 	};
 
 	$.fn.wizard.logging = false;
 
-
-	WizardCard = function(wizard, card, index, prev, next) {
+	var WizardCard = function(wizard, card, index, prev, next) {
 		this.wizard = wizard;
 		this.index = index;
 		this.prev = prev;
@@ -42,7 +42,7 @@
 		this._disabled = false;
 		this._loaded = false;
 		this._events = {};
-	}
+	};
 
 	WizardCard.prototype = {
 
@@ -72,6 +72,10 @@
 			 * that we can call from here, instead of messing with the guts
 			 */
 			var w = this.wizard;
+
+			// The back button is only disabled on this first card...
+			w.backButton.toggleClass("disabled", this.index == 0);
+
 			if (this.index >= w._cards.length-1) {
 				this.log("on last card, changing next button to submit");
 
@@ -81,22 +85,12 @@
 			}
 			else {
 				w._readyToSubmit = false;
-				if (this.index == 0) {
-					w.backButton.toggleClass("disabled", true);
-				}
-				else {
-					w.backButton.toggleClass("disabled", false);
-				}
 				w.changeNextButton(w.args.buttons.nextText, "btn-primary");
 			}
 
 			return this;
 		},
 
-		// <li><a href="#" data-navindex="0">
-		//     <i class="icon-chevron-right"></i>
-		//     Name &amp; FQDN
-		// </a></li>
 		_createNavElement: function(name, i) {
 			var li = $('<li class="wizard-nav-item"></li>');
 			var a = $('<a class="wizard-nav-link"></a>');
@@ -340,30 +334,30 @@
 
 		isActive: function() {
 			return this.nav.hasClass("active");
-		},
+		}
 	};
 
 
 	Wizard = function(markup, args) {
-		var wizard_template = [
+		var wizard_template_modal = [
 			'<div class="modal hide wizard-modal" role="dialog">',
+
 				'<div class="wizard-modal-header modal-header">',
 					'<button class="wizard-close close" type="button">x</button>',
 					'<h3 class="wizard-title"></h3>',
 					'<span class="wizard-subtitle"></span>',
 				'</div>',
+
 				'<div class="pull-left wizard-steps">',
 					'<div class="wizard-nav-container">',
 						'<ul class="nav nav-list" style="padding-bottom:30px;">',
 						'</ul>',
 					'</div>',
-
 					'<div class="wizard-progress-container">',,
 						'<div class="progress progress-striped">',
 							'<div class="bar"></div>',
 						'</div>',
 					'</div>',
-
 				'</div>',
 
 				'<form>',
@@ -372,32 +366,87 @@
 						'</div>',
 						'<div class="wizard-modal-footer">',
 							'<div class="wizard-buttons-container">',
-								'<button class="btn wizard-back" type="button">Back</button>',
-								'<button class="btn btn-primary wizard-next" type="button">Next</button>',
+								'<button class="btn wizard-cancel wizard-close" type="button">Cancel</button>',
+								'<div class="btn-group-single pull-right">',
+									'<button class="btn wizard-back" type="button">Back</button>',
+									'<button class="btn btn-primary wizard-next" type="button">Next</button>',
+								'</div>',
 							'</div>',
 						'</div>',
 					'</div>',
 				'</form>',
+
+			'</div>'
+		];
+
+		var wizard_template_no_modal = [
+			'<div class="wizard-no-modal" role="dialog">',
+
+				'<div class="wizard-modal-header modal-header">',
+					'<button class="wizard-close close" type="button">x</button>',
+					'<h3 class="wizard-title"></h3>',
+					'<span class="wizard-subtitle"></span>',
+				'</div>',
+
+				'<div class="pull-left wizard-steps">',
+					'<div class="wizard-nav-container">',
+						'<ul class="nav nav-list" style="padding-bottom:30px;">',
+						'</ul>',
+					'</div>',
+					'<div class="wizard-progress-container">',,
+						'<div class="progress progress-striped">',
+							'<div class="bar"></div>',
+						'</div>',
+					'</div>',
+				'</div>',
+
+				'<form>',
+					'<div class="wizard-cards">',
+						'<div class="wizard-card-container">',
+						'</div>',
+						'<div class="wizard-modal-footer">',
+							'<div class="wizard-buttons-container">',
+								'<button class="btn wizard-cancel wizard-close" type="button">Cancel</button>',
+								'<div class="btn-group-single pull-right">',
+									'<button class="btn wizard-back" type="button">Back</button>',
+									'<button class="btn btn-primary wizard-next" type="button">Next</button>',
+								'</div>',
+							'</div>',
+						'</div>',
+					'</div>',
+				'</form>',
+
 			'</div>'
 		];
 
 		this.args = {
 			submitUrl: "",
 			width: 750,
+			showCancel: false,
+			showClose: true,
 			progressBarCurrent: false,
 			increaseHeight: 0,
 			buttons: {
+				cancelText: "Cancel",
 				nextText: "Next",
 				backText: "Back",
 				submitText: "Submit",
 				submittingText: "Submitting...",
-			}
+			},
+			isModal: true
 		};
 		$.extend(this.args, args || {});
 
+		var wizard_template = this.args.isModal ? wizard_template_modal : wizard_template_no_modal;
+
+		// When not in modal buttons "Cancel" or "Closed" don't make much sense
+		if (!this.args.isModal) {
+			this.args.showCancel = false;
+			this.args.showClose = false;
+		}
+
 		this.markup = $(markup);
-		this.submitCards = this.markup.find(".wizard-error,.wizard-failure,\
-.wizard-success,.wizard-loading");
+		this.submitCards = this.markup.find(".wizard-error,.wizard-failure,.wizard-success,.wizard-loading");
 		this.el = $(wizard_template.join("\n"));
 		this.el.find(".wizard-card-container")
 			.append(this.markup.find(".wizard-card"))
@@ -406,6 +455,7 @@
 
 		this.closeButton = this.el.find("button.wizard-close");
 		this.footer = this.el.find(".wizard-modal-footer");
+		this.cancelButton = this.footer.find(".wizard-cancel");
 		this.backButton = this.footer.find(".wizard-back");
 		this.nextButton = this.footer.find(".wizard-next");
 		this.progress = this.el.find(".progress");
@@ -426,6 +476,7 @@
 		this.nextButton.click(this, this._handleNextClick);
 		this.backButton.click(this, this._handleBackClick);
 
+		this.cancelButton.text(this.args.buttons.cancelText);
 		this.backButton.text(this.args.buttons.backText);
 		this.nextButton.text(this.args.buttons.nextText);
 
@@ -443,14 +494,20 @@
 		this.el.find(".wizard-card").css("height", (navHeight-60)+"px");
 		this.submitCards.css("height", (navHeight-60)+"px");
 
-		this.el.css("margin-top", -(this.el.height() / 2));
+		if (this.args.isModal) {
+			this.el.css("margin-top", -(this.el.height() / 2));	
+		}
+		
 
 
 		/*
 		 * adjust the width of the modal
 		 */
 		this.el.css("width", this.args.width);
-		this.el.css("margin-left", -(this.args.width / 2));
+		if (this.args.isModal) {
+			this.el.css("margin-left", -(this.args.width / 2));
+		}
+		
 
 
 
@@ -477,7 +534,8 @@
 		this.closeButton.click(function() {
 			self.reset();
 			self.close();
-		})
+			self.trigger("closed");
+		});
 
 		this.el.find(".wizard-steps").on(
 			"click", "li.already-visited a.wizard-nav-link", this,
@@ -490,7 +548,7 @@
 		if (title.length) {this.setTitle(title.text());}
 
 		this.on("submit", this._defaultSubmit);
-	}
+	};
 
 	Wizard.prototype = {
 
@@ -526,7 +584,7 @@
 			}
 		},
 		
-		hidePopovers: function(el, msg) {
+		hidePopovers: function(el) {
 			this.log("hiding all popovers");
 			var self = this;
 			this.el.find(".error-popover").each(function (i, popover) {
@@ -581,24 +639,31 @@
 
 		hide: function() {
 			this.log("hiding");
-			this.el.modal("hide");
+			this.args.isModal ? this.el.modal("hide") : this.el.css("display", "none");
 			return this;
 		},
 
 		close: function() {
 			this.log("closing");
-			this.el.modal("hide");
+			this.args.isModal ? this.el.modal("hide") : this.el.css("display", "none");
 			return this;
 		},
 
 
-		show: function() {
+		show: function(modalOptions) {
 			this.log("showing");
 			if (this._firstShow) {
 				this.setCard(0);
 				this._firstShow = false;
 			}
-			this.el.modal();
+			if (this.args.showCancel) { this.cancelButton.show(); }
+			if (this.args.showClose) { this.closeButton.show(); }
+			if (this.args.isModal) {
+				this.el.modal(modalOptions);
+			} else {
+				this.el.css("display", "block");
+			}
+			
 			return this;
 		},
 
@@ -776,14 +841,13 @@
 				newCard.select();
 
 				if (this.args.progressBarCurrent) {
-					var last_percent = this.percentComplete;
 					this.percentComplete = i * 100.0 / this._cards.length;
 					this.updateProgressBar(this.percentComplete);					
 				}
 				else {
-					var last_percent = this.percentComplete;
+					var lastPercent = this.percentComplete;
 					this.percentComplete = i * 100.0 / this._cards.length;
-					this.percentComplete = Math.max(last_percent, this.percentComplete);
+					this.percentComplete = Math.max(lastPercent, this.percentComplete);
 					this.updateProgressBar(this.percentComplete);
 				}
 
@@ -843,6 +907,8 @@
 
 		hideButtons: function() {
 			this.log("hiding buttons");
+			this.cancelButton.hide();
+			this.closeButton.hide();
 			this.nextButton.hide();
 			this.backButton.hide();
 			return this;
@@ -850,6 +916,8 @@
 
 		showButtons: function() {
 			this.log("showing buttons");
+			if (this.args.showCancel) { this.cancelButton.show(); }
+			if (this.args.showClose) {this.closeButton.show()};
 			this.nextButton.show();
 			this.backButton.show();
 			return this;
@@ -876,7 +944,6 @@
 		_createCards: function() {
 			var prev = null;
 			var next = null;
-			var current_i = 0;
 			var currentCard = null;
 			var wizard = this;
 			var self = this;
@@ -955,22 +1022,22 @@
 		submitSuccess: function() {
 			this.log("submit success");
 			this._submitting = false;
-    		this.showSubmitCard("success");
-    		this.trigger("submitSuccess");
+			this.showSubmitCard("success");
+			this.trigger("submitSuccess");
 		},
 
 		submitFailure: function() {
 			this.log("submit failure");
 			this._submitting = false;
-    		this.showSubmitCard("failure");
-    		this.trigger("submitFailure");
+			this.showSubmitCard("failure");
+			this.trigger("submitFailure");
 		},
 
 		submitError: function() {
 			this.log("submit error");
 			this._submitting = false;
-    		this.showSubmitCard("error");
-    		this.trigger("submitError");
+			this.showSubmitCard("error");
+			this.trigger("submitError");
 		},
 
 
@@ -979,6 +1046,8 @@
 			this._submitting = true;
 
 			this.lockCards();
+			this.cancelButton.hide();
+			this.closeButton.hide();
 			this.backButton.hide();
 
 			this.showSubmitCard("loading");
